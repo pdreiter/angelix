@@ -1,5 +1,5 @@
 BINUTILS_VER=$(ld --version | head -n1 | awk '{print $NF}')
-GLIBC_VER=$(ld --version | head -n1 | awk '{print $NF}')
+GLIBC_VER=$(ldd --version | head -n1 | awk '{print $NF}')
 if [ $(echo "$BINUTILS_VER > 2.30" | bc) -eq 1 ]; then 
     echo "Error: Angelix supports only BinUtils <= 2.30"
     exit 1
