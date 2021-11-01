@@ -501,6 +501,8 @@ if __name__ == "__main__":
                         help='[deprecated] run tests redundantly (default: %(default)s)')
     parser.add_argument('--invalid-localization', action='store_true',
                         help='[deprecated] use tests that fail in golden version for localization (default: %(default)s)')
+    parser.add_argument('--m32', action='store_true',default=False,
+                        help='specify 32b exe')
     parser.add_argument('--verbose', action='store_true',
                         help='print compilation and KLEE messages (default: %(default)s)')
     parser.add_argument('--quiet', action='store_true',
@@ -619,6 +621,7 @@ if __name__ == "__main__":
     config['generate_all']          = args.generate_all
     config['init_uninit_vars']      = args.init_uninit_vars
     config['redundant_test']        = args.redundant_test
+    config['m32']                   = args.m32
     config['verbose']               = args.verbose
     config['build_before_instr']    = args.build_before_instr
     config['instr_printf']          = args.instr_printf

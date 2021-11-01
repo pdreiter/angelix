@@ -167,7 +167,7 @@ class Frontend(Project):
                       self.build_cmd,
                       subprocess.DEVNULL if self.config['mute_build_message']
                       else self.subproc_output,
-                      'angelix-compiler --test',
+                      'angelix-compiler-test',
                       self.config)
         compile_end_time = time.time()
         compile_elapsed = compile_end_time - compile_start_time
@@ -184,7 +184,7 @@ class Backend(Project):
                       self.build_cmd,
                       subprocess.DEVNULL if self.config['mute_build_message']
                       else self.subproc_output,
-                      'angelix-compiler --klee',
+                      'angelix-compiler-klee',
                       self.config)
         compile_end_time = time.time()
         compile_elapsed = compile_end_time - compile_start_time

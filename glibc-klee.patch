@@ -1,0 +1,41 @@
+File src/klee/.git is a regular file while file ../klee-forks/klee/.git is a directory
+diff -ruN src/klee/runtime/POSIX/stubs.c ../klee-forks/klee/runtime/POSIX/stubs.c
+--- src/klee/runtime/POSIX/stubs.c	2021-11-01 10:58:18.379336660 -0700
++++ ../klee-forks/klee/runtime/POSIX/stubs.c	2021-10-29 12:56:56.587250345 -0700
+@@ -30,6 +30,11 @@
+ 
+ void klee_warning(const char*);
+ void klee_warning_once(const char*);
++#if __GLIBC_PREREQ(2, 25)
++#define gnu_dev_type dev_t
++#else
++#define gnu_dev_type unsigned long long int
++#endif
+ 
+ /* Silent ignore */
+ 
+@@ -235,18 +240,18 @@
+   return strcmp(__s1, __s2); /* XXX no doubt this is bad */
+ }
+ 
+-unsigned int gnu_dev_major(unsigned long long int __dev) __attribute__((weak));
+-unsigned int gnu_dev_major(unsigned long long int __dev) {
++unsigned int gnu_dev_major(gnu_dev_type __dev) __attribute__((weak));
++unsigned int gnu_dev_major(gnu_dev_type __dev) {
+   return ((__dev >> 8) & 0xfff) | ((unsigned int) (__dev >> 32) & ~0xfff);
+ }
+ 
+-unsigned int gnu_dev_minor(unsigned long long int __dev) __attribute__((weak));
+-unsigned int gnu_dev_minor(unsigned long long int __dev) {
++unsigned int gnu_dev_minor(gnu_dev_type __dev) __attribute__((weak));
++unsigned int gnu_dev_minor(gnu_dev_type __dev) {
+   return (__dev & 0xff) | ((unsigned int) (__dev >> 12) & ~0xff);
+ }
+ 
+-unsigned long long int gnu_dev_makedev(unsigned int __major, unsigned int __minor) __attribute__((weak));
+-unsigned long long int gnu_dev_makedev(unsigned int __major, unsigned int __minor) {
++gnu_dev_type gnu_dev_makedev(unsigned int __major, unsigned int __minor) __attribute__((weak));
++gnu_dev_type gnu_dev_makedev(unsigned int __major, unsigned int __minor) {
+   return ((__minor & 0xff) | ((__major & 0xfff) << 8)
+           | (((unsigned long long int) (__minor & ~0xff)) << 12)
+           | (((unsigned long long int) (__major & ~0xfff)) << 32));

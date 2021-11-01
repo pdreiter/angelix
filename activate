@@ -1,3 +1,15 @@
+BINUTILS_VER=$(ld --version | head -n1 | awk '{print $NF}')
+GLIBC_VER=$(ld --version | head -n1 | awk '{print $NF}')
+if [ "$BINUTILS_VER" -gt "2.30" ]; then 
+    echo "Error: Angelix supports only BinUtils <= 2.30"
+    exit 1
+fi
+
+if [ "$GLIBC_VER" -gt "2.27" ]; then 
+    echo "Error: Angelix supports only GLIBC <= 2.27"
+    exit 1
+fi
+
 if [[ `uname -m` != "x86_64" ]]; then
     echo "Error: Angelix supports only x86_64"
     exit 1
@@ -17,6 +29,7 @@ export ANGELIX_ROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 export LLVM_GCC_DIR="$ANGELIX_ROOT/build/llvm-gcc4.2-2.9-x86_64-linux"
 export LLVM2_DIR="$ANGELIX_ROOT/build/llvm-2.9"
+
 export LLVM3_DIR="$ANGELIX_ROOT/build/llvm-3.7.0.src"
 export CLANG_HEADERS="$LLVM3_DIR/tools/clang/lib/Headers/"
 export LLVM3_INCLUDE_PATH="$ANGELIX_ROOT/build/include"
@@ -36,6 +49,13 @@ export SYNTHESIS_DIR="$ANGELIX_ROOT/src/synthesis"
 export SYNTHESIS_JAR="$SYNTHESIS_DIR/target/scala-2.10/repair-maxsat-assembly-1.0.jar"
 export NSYNTH_JAR="$ANGELIX_ROOT/src/nsynth/target/nsynth-1.0-jar-with-dependencies.jar"
 export LOCAL_PERL_ROOT="$ANGELIX_ROOT/build/perl"
+
+# 32b variables
+export LLVM_GCC32="llvm-gcc-4.2-2.9-i686-linux"
+export LLVM_GCC32_DIR="$ANGELIX_ROOT/build/$LLVM_GCC32"
+export LLVM2_32_DIR=$LLVM2_DIR"_32"
+export KLEE_32_DIR=$KLEE_DIR"_32"
+export KLEE_UCLIBC_32_DIR=$KLEE_UCLIBC_DIR"_32"
 
 # envorinment for building and execution:
 

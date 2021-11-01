@@ -7,6 +7,12 @@ use strict;
 use warnings;
 use File::Spec;
 
+my $gcc_path = $ENV{'LLVM_GCC_DIR'}."/Release+Asserts/bin/llvm-gcc"; 
+my $gcc32_path = $ENV{'LLVM_GCC32_DIR'}."/bin/llvm-gcc";
+
+my $llvm_path = $ENV{'LLVM2_DIR'};
+my $llvm32_path = $ENV{'LLVM2_DIR'}."_32";
+
 my $angelix_header = $ENV{'ANGELIX_RUNTIME_H'};
 my $libs_klee = $ENV{'ANGELIX_LIBRARY_PATH_KLEE'};
 my $libs_test = $ENV{'ANGELIX_LIBRARY_PATH_TEST'};
@@ -65,6 +71,11 @@ sub get_target() {
 
 
 sub get_source {
+
+    if ( ($_[0] =~ /-c\s+(\S+(\/\S+)*\.[sS])$/) || ($_[0] =~ /-c\s+(\S+(\/\S+)*\.[sS])\s/) ){
+		debug("$1 <assembly>");
+        return "<assembly>";
+    }    
     if ($_[0] =~ /\s(\S+\.c)$/) {
         return $1;
     }
@@ -82,7 +93,7 @@ sub wrap_args {
 
 sub filter_non_link_args {
     # The argument that llvm-ld does not understand:
-    my @keys = qw/-g -pthread -shared -O -O1 -O2 -O3 -pedantic -std=gnu99 -std=c99 -m64 -mtune=k8 -march=k8 -prune-eh/;
+    my @keys = qw/-g -pthread -shared -O -O1 -O2 -O3 -pedantic -std=gnu99 -std=c99 -m64 -mtune=k8 -march=k8 -prune-eh -m32/;
     my %non_link_args;
     @non_link_args{@keys} = ();
     my @link_args;
@@ -155,17 +166,37 @@ shift @ARGV;
 
 my $target = get_target();
 
-if ($compilation_mode eq "test") {
+my $str = join(' ',@ARGV);
+my $is_32=0;
+if ($str =~ /-m32\s*/){ 
+    $is_32=1; 
+    $libs_test=$libs_test."/32";
+    $libs_klee=$libs_klee."/32";
+    $klee_libs=$klee_libs."/32";
+}
+debug($str);
+my $s=get_source($str);
+debug($s);
+if ($s eq "<assembly>"){ 
+    my $c="gcc $str";
+    debug($c);
+    system("$c");
+	my $r=$?;
+    exit($r);
+}
+elsif ($compilation_mode eq "test") {
 
     my @test_comp_args = filter_non_comp_args(\@ARGV, 1);
     my @args = ("gcc",
                 "-include $angelix_header",                
+                "-no-pie",
                 wrap_args(@test_comp_args),
                 "-L$libs_test",
                 "-langelix",
 # in this generic build, runtime component requires this stub library:                
                 "-L$klee_libs",
                 "-lkleeRuntest",
+                "-lkleeBasic",
                 $custom_test_flags
                 );
     my $call_gcc = join(' ', @args);
@@ -189,7 +220,9 @@ if ($compilation_mode eq "test") {
     if (defined($target) && ($target =~ m/\.o$/ || ! $target)) {
         
         my @klee_comp_args = filter_non_comp_args(\@ARGV, 0);
-        my @args = ("llvm-gcc",
+        my $LLVM_GCC="llvm-gcc";
+        if ($is_32==1) {  $LLVM_GCC=$gcc32_path; }
+        my @args = ($LLVM_GCC,
                     # it breaks compilation of .s files on openssl:
                     "-include $angelix_header",
                     "-emit-llvm",
@@ -212,8 +245,10 @@ if ($compilation_mode eq "test") {
         
     } else {
         
+        my $LLVM_LD="llvm-ld";
+        if ($is_32==1) {  $LLVM_LD=$llvm32_path."/Release+Asserts/bin/llvm-ld"; }
         my @link_args = filter_non_link_args(@ARGV);
-        my @args = ("llvm-ld",
+        my @args = ($LLVM_LD,
                     "--disable-opt",
                     wrap_args(@link_args),
                     "-L$libs_klee",

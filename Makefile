@@ -1,4 +1,5 @@
 DEFAULT_MODULES = llvm-gcc llvm2 minisat stp klee-uclibc klee z3 clang bear runtime frontend maxsmt synthesis
+DEFAULT_32_MODULES = llvm-gcc-32 llvm2-32 minisat-32 stp-32 klee-uclibc-32 klee-32 z3 clang bear runtime-32 frontend maxsmt synthesis
 OPTIONAL_MODULES = nsynth semfix
 CLEAN_MODULES = $(addprefix clean-, $(DEFAULT_MODULES)) $(addprefix clean-, $(OPTIONAL_MODULES))
 
@@ -7,7 +8,9 @@ help:
 	@echo Semantics-based Automated Program Repair Tool
 	@echo
 	@echo \'make default\''          'build default modules
+	@echo \'make default-32\''   'build default 32b modules
 	@echo \'make all\''                  'build all modules
+	@echo \'make all-32\''       'build all and 32b modules
 	@echo \'make MODULE\''                    'build module
 	@echo \'make clean-all\''            'clean all modules
 	@echo \'make clean-MODULE\''              'clean module
@@ -22,7 +25,9 @@ help:
 	@echo -n ' '$(foreach module, $(OPTIONAL_MODULES),"* $(module)\n")
 
 default: $(DEFAULT_MODULES)
+default-32: $(DEFAULT_32_MODULES)
 all: $(DEFAULT_MODULES) $(OPTIONAL_MODULES)
+all-32: $(DEFAULT_MODULES) $(DEFAULT_32_MODULES) $(OPTIONAL_MODULES)
 clean-all: $(CLEAN_MODULES)
 
 .PHONY: help all $(DEFAULT_MODULES) $(OPTIONAL_MODULES) clean-all $(CLEAN_MODULES) test test-semfix docker
@@ -31,6 +36,20 @@ clean-all: $(CLEAN_MODULES)
 
 DOWNLOAD=wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --tries=5 --continue
 
+GLIBC_VERSION=$(lastword $(shell ldd --version | head -n 1))
+GLIBC_PLUS_2_25=$(shell expr $(GLIBC_VERSION) \>= 2.25)
+APPLIED_KLEE_PATCH=$(shell (patch -p0 --forward --dry-run < glibc-klee.patch > /dev/null 2>&1  ; echo $$?)  )
+
+LLVM_GCC32=llvm-gcc-4.2-2.9-i686-linux
+LLVM_GCC32_ARCHIVE=$(LLVM_GCC32).tgz
+LLVM_GCC32_URL=https://llvm.org/releases/2.9/$(LLVM_GCC32_ARCHIVE)
+LLVM_GCC32_DIR=$(ANGELIX_ROOT)/build/$(LLVM_GCC32)
+LLVM2_32_DIR=$(LLVM2_DIR)_32
+FLAGS_32="-m32"
+KLEE_32_DIR=$(KLEE_DIR)_32
+LLVM29_DIR=llvm-2.9
+
+LLVM_GCC=llvm-gcc4.2-2.9-x86_64-linux
 LLVM_GCC_URL=http://llvm.org/releases/2.9/llvm-gcc4.2-2.9-x86_64-linux.tar.bz2
 LLVM_GCC_ARCHIVE=llvm-gcc4.2-2.9-x86_64-linux.tar.bz2
 LLVM2_PATCH_URL=http://www.mail-archive.com/klee-dev@imperial.ac.uk/msg01302/unistd-llvm-2.9-jit.patch
@@ -50,6 +69,11 @@ Z3_URL=https://github.com/mechtaev/z3.git
 Z3_2_19_URL=https://github.com/Z3Prover/bin/raw/master/legacy/z3-2.19.tar.gz
 Z3_2_19_ARCHIVE=z3-2.19.tar.gz
 KLEE_UCLIBC_URL=https://github.com/klee/klee-uclibc.git
+
+KLEE_UCLIBC=klee-uclibc
+KLEE_UCLIBC_32=$(KLEE_UCLIBC)_32
+KLEE_UCLIBC_32_DIR=$(KLEE_UCLIBC_DIR)_32
+
 BEAR_URL=https://github.com/rizsotto/Bear.git
 BEAR_VERSION=2.1.4
 STP_VERSION=2.1.2
@@ -68,19 +92,43 @@ test-semfix:
 # LLVM-GCC #
 
 llvm-gcc: build/$(LLVM_GCC_ARCHIVE)
-	cd build && tar xf $(LLVM_GCC_ARCHIVE)
+	cd build && [ -d $(LLVM_GCC) ] || tar xf $(LLVM_GCC_ARCHIVE)
 
 build/$(LLVM_GCC_ARCHIVE):
 	cd build && $(DOWNLOAD) $(LLVM_GCC_URL)
+
+# LLVM-GCC32 #
+
+llvm-gcc-32: build/$(LLVM_GCC32_ARCHIVE)
+	cd build && [ -d $(LLVM_GCC32) ] || tar xf $(LLVM_GCC32_ARCHIVE)
+
+build/$(LLVM_GCC32_ARCHIVE):
+	cd build && $(DOWNLOAD) $(LLVM_GCC32_URL)
 
 clean-llvm-gcc:
 
 # LLVM2 #
 
-llvm2: build/$(LLVM2_ARCHIVE) build/$(LLVM2_PATCH)
-	cd build && tar xf $(LLVM2_ARCHIVE)
-	cd build && patch -p0 -N < $(LLVM2_PATCH)
-	cd $(LLVM2_DIR) && ./configure --enable-optimized --enable-assertions && make
+llvm2-32: llvm2-setup-32
+	cd $(LLVM2_32_DIR) && CFLAGS=$(FLAGS_32) CPPFLAGS=$(FLAGS_32) CXXFLAGS=$(FLAGS_32) ./configure --enable-optimized --enable-assertions --with-llvmgccdir=$(LLVM_GCC32_DIR) && \
+	CFLAGS=$(FLAGS_32) CPPFLAGS=$(FLAGS_32) CXXFLAGS=$(FLAGS_32) make
+
+
+llvm2-setup-32: 
+	[ -d $(LLVM2_32_DIR) ] || \
+	mkdir tmp && \
+	cd tmp && $(DOWNLOAD) $(LLVM2_URL) \
+	&& $(DOWNLOAD) $(LLVM2_PATCH_URL) \
+	&& tar xf $(LLVM2_ARCHIVE) \
+	&& patch -p0 -N < $(LLVM2_PATCH) \
+	&& mv $(LLVM29_DIR) $(LLVM2_32_DIR) && cd .. && rm -rf tmp
+
+llvm2-setup: build/$(LLVM2_ARCHIVE) build/$(LLVM2_PATCH)
+	cd build && [ -d $(LLVM2_DIR) ] || ( tar xf $(LLVM2_ARCHIVE) && patch -p0 -N < $(LLVM2_PATCH) )
+
+llvm2: build/$(LLVM2_ARCHIVE) build/$(LLVM2_PATCH) llvm2-setup
+	cd $(LLVM2_DIR) && ./configure --enable-optimized --enable-assertions && \
+	make
 
 build/$(LLVM2_ARCHIVE):
 	cd build && $(DOWNLOAD) $(LLVM2_URL)
@@ -96,6 +144,12 @@ clean-llvm2:
 stp: $(STP_DIR)
 	cd $(STP_DIR) && mkdir -p build && cd build && cmake -DMINISAT_LIBRARY="$(MINISAT_DIR)/build/libminisat.so.2" -DMINISAT_INCLUDE_DIR="$(MINISAT_DIR)" -G 'Unix Makefiles' $(STP_DIR) && make
 
+stp-32: $(STP_DIR)
+	cd $(STP_DIR) && mkdir -p build32 && cd build32 && \
+	CFLAGS=$(FLAGS_32) CXXFLAGS=$(FLAGS_32) CPPFLAGS=$(FLAGS_32) cmake -DCMAKE_EXE_LINKER_FLAGS=$(FLAGS_32) -DCMAKE_SHARED_LINKER_FLAGS=$(FLAGS_32) \
+	-DMINISAT_LIBRARY="$(MINISAT_DIR)/build32/libminisat.so.2" -DMINISAT_INCLUDE_DIR="$(MINISAT_DIR)" -G 'Unix Makefiles' $(STP_DIR) && \
+	make
+
 $(STP_DIR):
 	cd build && git clone --branch $(STP_VERSION) $(STP_URL)
 
@@ -106,6 +160,10 @@ clean-stp:
 
 minisat: $(MINISAT_DIR)
 	cd $(MINISAT_DIR) && mkdir -p build && cd build && cmake -G 'Unix Makefiles' $(MINISAT_DIR) && make
+
+minisat-32: $(MINISAT_DIR)
+	cd $(MINISAT_DIR) && mkdir -p build32 && cd build32 && CFLAGS=$(FLAGS_32) CXXFLAGS=$(FLAGS_32) cmake -G 'Unix Makefiles' $(MINISAT_DIR) && make
+
 
 $(MINISAT_DIR):
 	cd build && git clone --depth=1 $(MINISAT_URL)
@@ -118,16 +176,33 @@ clean-minisat:
 klee-uclibc: $(KLEE_UCLIBC_DIR)
 	cd $(KLEE_UCLIBC_DIR) && ./configure --make-llvm-lib && make -j2
 
+klee-uclibc-32: $(KLEE_UCLIBC_32_DIR)
+	cd $(KLEE_UCLIBC_32_DIR) && \
+	CFLAGS=$(FLAGS_32) CXXFLAGS=$(FLAGS_32) CPPFLAGS=$(FLAGS_32) ./configure --make-llvm-lib --with-llvm-config "$(LLVM2_32_DIR)/Release+Asserts/bin/llvm-config" && \
+	make KLEE_CFLAGS=$(FLAGS_32) -j2
+
 $(KLEE_UCLIBC_DIR):
 	cd build && git clone --depth=1 $(KLEE_UCLIBC_URL)
+
+$(KLEE_UCLIBC_32_DIR):
+	cd build && git clone --depth=1 $(KLEE_UCLIBC_URL) $(KLEE_UCLIBC_32)
 
 clean-klee-uclibc:
 	cd $(KLEE_UCLIBC_DIR) && make clean
 
 # KLEE #
 
-klee:
+klee-glibc-patch:
+	@[ $(GLIBC_PLUS_2_25) -eq 0 ] || [ $(APPLIED_KLEE_PATCH) -eq 1 ] || patch -p0 --forward < glibc-klee.patch
+
+klee: klee-glibc-patch
 	cd $(KLEE_DIR) && ./configure --with-llvm=$(LLVM2_DIR) --with-stp=$(STP_DIR)/build --with-uclibc=$(KLEE_UCLIBC_DIR) --enable-posix-runtime && make ENABLE_OPTIMIZED=1
+
+klee-32:
+	[ -d $(KLEE_32_DIR) ] || cp -r $(KLEE_DIR) $(KLEE_32_DIR) && cd $(KLEE_32_DIR) && make clean
+	cd $(KLEE_32_DIR) && CFLAGS=$(FLAGS_32) CXXFLAGS=$(FLAGS_32) CPPFLAGS=$(FLAGS_32) ./configure --with-llvm=$(LLVM2_32_DIR) --with-stp=$(STP_DIR)/build32 --with-uclibc=$(KLEE_UCLIBC_32_DIR) --enable-posix-runtime && \
+	CFLAGS=$(FLAGS_32) CXXFLAGS=$(FLAGS_32) CPPFLAGS=$(FLAGS_32) make VERBOSE=1 ENABLE_OPTIMIZED=1
+	[ -L $(KLEE_DIR)/Release+Asserts/lib/32 ] || ln -sf $(KLEE_32_DIR)/Release+Asserts/lib $(KLEE_DIR)/Release+Asserts/lib/32
 
 clean-klee:
 	cd $(KLEE_DIR) && make clean
@@ -141,6 +216,15 @@ runtime:
 	cp src/runtime/libangelix.test.a $(ANGELIX_ROOT)/build/lib/test/libangelix.a
 	cp src/runtime/libangelix.klee.a $(ANGELIX_ROOT)/build/lib/klee/libangelix.a
 	cd src/runtime && make clean
+
+runtime-32:
+	[ -d src/runtime_32 ] || cp -r src/runtime src/runtime_32 
+	cd src/runtime_32 && CFLAGS="-m32" make
+	mkdir -p $(ANGELIX_ROOT)/build/lib/klee/32
+	mkdir -p $(ANGELIX_ROOT)/build/lib/test/32
+	cp src/runtime_32/libangelix.test.a $(ANGELIX_ROOT)/build/lib/test/32/libangelix.a
+	cp src/runtime_32/libangelix.klee.a $(ANGELIX_ROOT)/build/lib/klee/32/libangelix.a
+	cd src/runtime_32 && make clean
 
 clean-runtime:
 	rm -rf $(ANGELIX_ROOT)/build/lib
@@ -242,11 +326,12 @@ distclean-nsynth: clean-nsynth
 # Clang #
 
 clang: build/$(LLVM3_ARCHIVE) build/$(CLANG_ARCHIVE) build/$(COMPILER_RT_ARCHIVE)
-	cd build && tar xf $(LLVM3_ARCHIVE)
+	cd build && [ -d $(LLVM3_DIR) ] || tar xf $(LLVM3_ARCHIVE)
 	mkdir -p "$(LLVM3_DIR)/tools/clang"
 	cd build && tar xf $(CLANG_ARCHIVE) --directory "$(LLVM3_DIR)/tools/clang" --strip-components=1
 	mkdir -p "$(LLVM3_DIR)/projects/compiler-rt"
 	cd build && tar xf $(COMPILER_RT_ARCHIVE) --directory "$(LLVM3_DIR)/projects/compiler-rt" --strip-components=1
+	[ $(GLIBC_PLUS_2_25) -eq 0 ] || patch -p0 -F70 < ../glibc-compiler-rt.patch
 	cd "$(LLVM3_DIR)/tools/clang/tools/" && rm extra -rf && git clone --branch release_37 $(CLANG_TOOLS_EXTRA_URL) extra
 	mkdir -p "$(LLVM3_DIR)/build" && cd "$(LLVM3_DIR)/build" && cmake -G "Unix Makefiles" ../ && make
 
