@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-I $(KLEE_INCLUDE_PATH)
+CFLAGS:= $(CFLAGS) -I $(KLEE_INCLUDE_PATH)
 
 DEP = runtime.h
 SRC = runtime.c
